@@ -684,7 +684,8 @@ class Drone(Node):
     def check_pad(self):
         """
         If the drone is charging, perform simple outlier detection on the initial position and publish it to the PadManager.
-        TODO: implement better outlier detection
+        TODO: implement better outlier detection. Ideas: Test for 1 drone. 0.1 seems a bit rough since it allows a 0.6m range for all parameters 99% interval
+                                                         Doesnt this just push the location after 1 sample? Is 0, 0, 0 deleted from samples? Print samples
         """
         if np.all(self.initial_position == [0, 0, 0]) and self.position != self.last_pos and (self.battery_state == 1 or self.battery_state == 2):
             self.samples.append(self.position)
@@ -696,8 +697,10 @@ class Drone(Node):
 
                 # remove outliers that are more than 2 standard deviations away from the mean
                 new_samples = np.delete(self.samples.data, np.any(np.abs(self.samples.data - mean) > 2*std, axis=1), axis=0)
-                if np.all(np.std(new_samples, axis=0) < 0.1):
+                if np.all(np.std(new_samples, axis=0) < 0.005):
+                    self.get_logger().debug(f"Pad STD smaller than 5mm for {len(new_samples)} samples")
                     self.initial_position = np.mean(new_samples, axis=0)
+                    self.get_logger().debug(f"Concluded pad position: {[round(x, 4) for x in self.initial_position]} +- {[round(x, 4) for x in std]}")
                     msg = Location()
                     msg.uri = self.uri
                     msg.location = list(self.initial_position)
@@ -1105,8 +1108,9 @@ class Drone(Node):
             self.error_msg = f"error in {self.state}: {e}"
             traceback.print_exc()
             self.state = ERROR
-    
 
+
+            
 ############################# Main function #############################
 executor = None
 def main(args=None):
